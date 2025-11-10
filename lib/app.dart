@@ -13,7 +13,7 @@ Future<void> fetchAndDownloadRelease(List<String> arguments) async {
   try {
     final config = ArgumentParser.parse(arguments);
     if (config.latest && config.chooseTag != null) {
-      print('❌ 错误: -t/--tag 和 -l/--latest 选项不能同时使用');
+      print('❌ 错误: -t 和 -l 选项不能同时使用');
       exit(1);
     }
 

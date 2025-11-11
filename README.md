@@ -63,7 +63,7 @@ JSON **数组**，每个元素是一个预设（profile）。
 | `forceOverwrite` | bool | 是否强制覆盖已存在文件，默认 `false` |
 | `repo` | string | 仓库简写，默认 `nostalgia296/asd` |
 | `chooseTag` | string? | 指定 tag，与 `latest` 互斥 |
-| `path` | string? | 下载到哪个目录（支持 `~`） |
+| `path` | string? | 下载到哪个目录（目前不支持 `~`） |
 | `latest` | bool | 是否总是取最新 Release，默认 `false` |
 
 ---

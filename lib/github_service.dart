@@ -6,17 +6,22 @@ class GitHubRelease {
   final String tagName;
   final List<GitHubAsset> assets;
 
-  GitHubRelease({required this.tagName, required this.assets});
+  const GitHubRelease({required this.tagName, required this.assets});
 
   factory GitHubRelease.fromJson(Map<String, dynamic> json) {
     final assets = <GitHubAsset>[];
-    if (json['assets'] != null) {
-      for (final asset in json['assets']) {
-        assets.add(GitHubAsset.fromJson(asset));
+    final assetsJson = json['assets'] as List<dynamic>?;
+
+    if (assetsJson != null) {
+      for (final asset in assetsJson) {
+        assets.add(GitHubAsset.fromJson(asset as Map<String, dynamic>));
       }
     }
 
-    return GitHubRelease(tagName: json['tag_name'] ?? '', assets: assets);
+    return GitHubRelease(
+      tagName: json['tag_name'] as String? ?? '',
+      assets: assets,
+    );
   }
 }
 
@@ -24,33 +29,48 @@ class GitHubAsset {
   final String name;
   final String browserDownloadUrl;
 
-  GitHubAsset({required this.name, required this.browserDownloadUrl});
+  const GitHubAsset({required this.name, required this.browserDownloadUrl});
 
   factory GitHubAsset.fromJson(Map<String, dynamic> json) {
     return GitHubAsset(
-      name: json['name'] ?? '',
-      browserDownloadUrl: json['browser_download_url'] ?? '',
+      name: json['name'] as String? ?? '',
+      browserDownloadUrl: json['browser_download_url'] as String? ?? '',
     );
   }
 
   Map<String, String> toFileInfo({String? mirrorUrl}) {
     String downloadUrl = browserDownloadUrl;
     if (mirrorUrl != null) {
-      downloadUrl = '$mirrorUrl$downloadUrl';
+      if (!downloadUrl.startsWith(mirrorUrl)) {
+        downloadUrl = '$mirrorUrl$downloadUrl';
+      }
     }
     return {'name': name, 'url': downloadUrl};
   }
 }
 
 class GitHubService {
-  final HttpClient _client = HttpClient();
+  static const String _apiBaseUrl = 'https://api.github.com';
+  static const Duration _timeout = Duration(seconds: 30);
+
+  final HttpClient _client;
+
+  GitHubService() : _client = _createHttpClient();
+
+  static HttpClient _createHttpClient() {
+    final client = HttpClient()
+      ..connectionTimeout = _timeout
+      ..idleTimeout = _timeout
+      ..userAgent = 'GitHub-Release-Downloader/1.0'
+      ..autoUncompress = true;
+    return client;
+  }
 
   Future<List<GitHubRelease>> getReleases(String repo) async {
     try {
       print('获取发布信息...');
-      final request = await _client.getUrl(
-        Uri.parse('https://api.github.com/repos/$repo/releases'),
-      );
+      final uri = Uri.parse('$_apiBaseUrl/repos/$repo/releases');
+      final request = await _client.getUrl(uri);
       final response = await request.close();
 
       if (response.statusCode != HttpStatus.ok) {
@@ -68,6 +88,11 @@ class GitHubService {
       return data
           .map((json) => GitHubRelease.fromJson(json as Map<String, dynamic>))
           .toList();
+    } on HttpException {
+      rethrow;
+    } on FormatException {
+      print('响应格式错误');
+      rethrow;
     } catch (e) {
       print('获取发布信息失败: $e');
       rethrow;
@@ -76,13 +101,12 @@ class GitHubService {
 
   Future<String> getLatestRelease(String repo) async {
     try {
-      final request = await _client.getUrl(
-        Uri.parse('https://api.github.com/repos/$repo/releases/latest'),
-      );
+      final uri = Uri.parse('$_apiBaseUrl/repos/$repo/releases/latest');
+      final request = await _client.getUrl(uri);
       final response = await request.close();
 
       if (response.statusCode != HttpStatus.ok) {
-        throw HttpException('获取发布信息失败，状态码: ${response.statusCode}');
+        throw HttpException('获取最新发布信息失败，状态码: ${response.statusCode}');
       }
 
       final responseBody = await response.transform(utf8.decoder).join();
@@ -92,9 +116,14 @@ class GitHubService {
         throw Exception('没有找到发布信息');
       }
 
-      return data['tag_name'];
+      return data['tag_name'] as String? ?? '';
+    } on HttpException {
+      rethrow;
+    } on FormatException {
+      print('响应格式错误');
+      rethrow;
     } catch (e) {
-      print('获取发布信息失败: $e');
+      print('获取最新发布信息失败: $e');
       rethrow;
     }
   }

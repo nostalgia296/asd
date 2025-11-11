@@ -19,10 +19,6 @@ Future<void> fetchAndDownloadRelease(List<String> arguments) async {
 
     if (config.latest) {
       final latestTagName = await gitHubService.getLatestRelease(config.repo);
-      if (latestTagName == null) {
-        print('❌ 错误: 无法获取最新版本');
-        exit(1);
-      }
       config.chooseTag = latestTagName;
     }
 

@@ -4,7 +4,7 @@ import 'package:downloader/github_service.dart';
 Future<List<Map<String, String>>?> getUserSelection(
   List<Map<String, String>> fileNames,
 ) async {
-  final selectedFiles = <Map<String, String>>[];
+  final selectedFiles = <Map<String, String>>{};
 
   while (true) {
     stdout.write('\n请选择要下载的文件 (输入数字，多个文件用逗号分隔，输入 0 退出，输入 b 返回tag选择): ');
@@ -57,11 +57,9 @@ Future<List<Map<String, String>>?> getUserSelection(
     }
 
     if (!hasError && selectedFiles.isNotEmpty) {
-      break;
+      return selectedFiles.toList();
     }
   }
-
-  return selectedFiles;
 }
 
 Future<int?> getTagSelection(List<GitHubRelease> releases) async {
@@ -78,7 +76,7 @@ Future<int?> getTagSelection(List<GitHubRelease> releases) async {
       return null;
     }
 
-    int? inputNumber = int.tryParse(input);
+    final inputNumber = int.tryParse(input);
 
     if (inputNumber == null) {
       print(' "$input" 不是有效的数字');

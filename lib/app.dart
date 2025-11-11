@@ -12,6 +12,11 @@ Future<void> fetchAndDownloadRelease(List<String> arguments) async {
 
   try {
     final config = ArgumentParser.parse(arguments);
+
+    if (config.profileName != null) {
+      print('使用配置: ${config.profileName}');
+    }
+
     if (config.latest && config.chooseTag != null) {
       print('❌ 错误: -t 和 -l 选项不能同时使用');
       exit(1);

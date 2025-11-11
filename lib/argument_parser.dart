@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:downloader/utils.dart';
+import 'package:downloader/config_handler.dart';
 
 class DownloadConfig {
   String? mirrorUrl;
@@ -8,6 +9,7 @@ class DownloadConfig {
   String? chooseTag;
   String? path;
   bool latest = false;
+  String? profileName;
 }
 
 class ArgumentParser {
@@ -17,9 +19,11 @@ class ArgumentParser {
   static const String _tagOption = '-t';
   static const String _pathOption = '-c';
   static const String _latestOption = '-l';
+  static const String _profileOption = '-p';
 
   static DownloadConfig parse(List<String> arguments) {
     final config = DownloadConfig();
+    String? profileName;
 
     for (int i = 0; i < arguments.length; i++) {
       switch (arguments[i]) {
@@ -64,6 +68,34 @@ class ArgumentParser {
         case _latestOption:
           config.latest = true;
           break;
+        case _profileOption:
+          if (i + 1 < arguments.length) {
+            profileName = arguments[i + 1];
+            config.profileName = profileName;
+            i++;
+          } else {
+            _printAndExit('错误: $_profileOption 参数需要提供一个配置名称');
+          }
+          break;
+      }
+    }
+
+    if (profileName != null) {
+      final profile = ConfigHandler.findProfileByName(profileName);
+      if (profile == null) {
+        _printAndExit('错误: 找不到名为 "$profileName" 的配置');
+      } else {
+        final profileConfig = profile.toDownloadConfig();
+
+        if (config.mirrorUrl == null)
+          config.mirrorUrl = profileConfig.mirrorUrl;
+        if (!config.forceOverwrite)
+          config.forceOverwrite = profileConfig.forceOverwrite;
+        if (config.repo == 'nostalgia296/asd') config.repo = profileConfig.repo;
+        if (config.chooseTag == null)
+          config.chooseTag = profileConfig.chooseTag;
+        if (config.path == null) config.path = profileConfig.path;
+        if (!config.latest) config.latest = profileConfig.latest;
       }
     }
 

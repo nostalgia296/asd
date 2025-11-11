@@ -35,10 +35,21 @@ class FileDownloader {
     final completer = Completer<void>();
     final progress = _DownloadProgress(files.length);
 
+    int lastCompleted = 0;
+    int lastSuccess = 0;
+    int lastFailures = 0;
+
     final progressStream = Stream.periodic(const Duration(milliseconds: 200), (
       _,
     ) {
-      if (files.length > 1) {
+      if (files.length > 1 &&
+          (progress.completed != lastCompleted ||
+              progress.success != lastSuccess ||
+              progress.failures != lastFailures)) {
+        lastCompleted = progress.completed;
+        lastSuccess = progress.success;
+        lastFailures = progress.failures;
+
         print(
           '\r下载进度: ${progress.completed}/${files.length} | 成功: ${progress.success} | 失败: ${progress.failures}     ',
         );
@@ -273,28 +284,6 @@ class FileDownloader {
       }
     } catch (e) {
       print('[$fileName] 文件完整性验证失败: $e');
-    }
-  }
-
-  Future<void> _downloadWithRetry(
-    String url,
-    String outputPath,
-    String fileName,
-    bool forceOverwrite,
-    int maxRetries,
-  ) async {
-    for (int attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        await downloadFileSimple(url, outputPath, fileName, forceOverwrite);
-        return;
-      } catch (e) {
-        if (attempt == maxRetries) {
-          rethrow;
-        }
-        print('[$fileName] 下载失败 (尝试 $attempt/$maxRetries): $e');
-        print('[$fileName] 等待 ${attempt * 2} 秒后重试...');
-        await Future.delayed(Duration(seconds: attempt * 2));
-      }
     }
   }
 

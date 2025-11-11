@@ -47,27 +47,3 @@ Future<String> getDownloadDirectory(String? path) async {
     return path;
   }
 }
-
-String createProgressBar(int received, int total) {
-  const width = 20;
-  if (total <= 0) return '[' + '?' * width + ']';
-  final progress = received / total;
-  final filled = (progress * width).round();
-  final empty = width - filled;
-  return '[' + '=' * filled + ' ' * empty + ']';
-}
-
-String formatBytes(int bytes) {
-  if (bytes < 1024) return '$bytes B';
-  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  if (bytes < 1024 * 1024 * 1024)
-    return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
-  return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
-}
-
-String formatTime(double seconds) {
-  if (seconds.isInfinite || seconds.isNaN || seconds <= 0) return '--:--';
-  final mins = (seconds / 60).floor();
-  final secs = (seconds % 60).floor();
-  return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
-}

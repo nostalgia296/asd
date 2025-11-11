@@ -45,7 +45,7 @@ Future<void> processReleases(
   GitHubService gitHubService,
   FileDownloader fileDownloader,
   List<GitHubRelease> releases,
-  dynamic config,
+  DownloadConfig config,
 ) async {
   bool shouldContinue = true;
   bool isFirstTime = true;
@@ -98,7 +98,7 @@ Future<GitHubRelease?> selectRelease(
     }
     selectedRelease = releases[selectedIndex];
   } else {
-    selectedRelease = findReleaseByTag(releases, config.chooseTag as String);
+    selectedRelease = findReleaseByTag(releases, config.chooseTag!);
     if (selectedRelease == null) {
       print('tag未找到');
       return null;
@@ -142,7 +142,7 @@ Future<List<Map<String, String>>?> selectFiles(
 Future<void> downloadAndShowResults(
   FileDownloader fileDownloader,
   List<Map<String, String>> selectedFiles,
-  dynamic config,
+  DownloadConfig config,
 ) async {
   final downloadDir = await getDownloadDirectory(config.path);
   print('\n下载目录: $downloadDir');

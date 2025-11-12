@@ -10,6 +10,7 @@ class ConfigProfile {
   final String? chooseTag;
   final String? path;
   final bool latest;
+  final String? action;
 
   ConfigProfile({
     required this.name,
@@ -19,6 +20,7 @@ class ConfigProfile {
     this.chooseTag,
     this.path,
     this.latest = false,
+    this.action,
   });
 
   factory ConfigProfile.fromJson(Map<String, dynamic> json) {
@@ -30,6 +32,7 @@ class ConfigProfile {
       chooseTag: json['chooseTag'] as String?,
       path: json['path'] as String?,
       latest: json['latest'] as bool? ?? false,
+      action: json['action'] as String?,
     );
   }
 
@@ -42,6 +45,7 @@ class ConfigProfile {
       'chooseTag': chooseTag,
       'path': path,
       'latest': latest,
+      'action': action,
     };
   }
 
@@ -53,6 +57,7 @@ class ConfigProfile {
     config.chooseTag = chooseTag;
     config.path = path;
     config.latest = latest;
+    config.action = action;
     return config;
   }
 }

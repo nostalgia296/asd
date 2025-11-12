@@ -10,6 +10,7 @@ class DownloadConfig {
   String? path;
   bool latest = false;
   String? profileName;
+  String? action;
 }
 
 class ArgumentParser {
@@ -108,6 +109,7 @@ class ArgumentParser {
           config.chooseTag = profileConfig.chooseTag;
         if (config.path == null) config.path = profileConfig.path;
         if (!config.latest) config.latest = profileConfig.latest;
+        if (config.action == null) config.action = profileConfig.action;
       }
     }
 

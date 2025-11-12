@@ -26,6 +26,7 @@ class FileDownloader {
     List<Map<String, String>> files,
     String downloadDir,
     bool forceOverwrite,
+    String? action,
   ) async {
     print('\n开始下载 ${files.length} 个文件...');
 
@@ -81,6 +82,11 @@ class FileDownloader {
             forceOverwrite,
           );
         }
+
+        if (action != null && action.contains(r'$FileName')) {
+          await executeActionForFile(action, downloadDir, fileName);
+        }
+
         progress.incrementSuccess();
       } catch (e) {
         final fileName = fileInfo['name']!;
@@ -136,11 +142,8 @@ class FileDownloader {
     final client = HttpClient();
 
     client.connectionTimeout = const Duration(seconds: 30);
-
     client.idleTimeout = const Duration(seconds: 60);
-
     client.userAgent = 'FileDownloader/1.0';
-
     client.autoUncompress = true;
 
     return client;
@@ -309,6 +312,38 @@ class FileDownloader {
     final mins = (seconds / 60).floor();
     final secs = (seconds % 60).floor();
     return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> executeActionForFile(
+    String action,
+    String downloadDir,
+    String fileName,
+  ) async {
+    try {
+      String actualCommand = action.replaceAll(r'$FileName', fileName);
+      print('\n执行后置命令: $actualCommand');
+
+      final processResult = await Process.run(
+        'sh',
+        ['-c', actualCommand],
+        workingDirectory: downloadDir,
+        runInShell: true,
+      );
+
+      if (processResult.exitCode == 0) {
+        print('命令执行成功');
+        if (processResult.stdout.toString().trim().isNotEmpty) {
+          print('标准输出: ${processResult.stdout}');
+        }
+      } else {
+        print('命令执行失败，退出码: ${processResult.exitCode}');
+        if (processResult.stderr.toString().trim().isNotEmpty) {
+          print('错误输出: ${processResult.stderr}');
+        }
+      }
+    } catch (e) {
+      print('执行命令时发生错误: $e');
+    }
   }
 }
 

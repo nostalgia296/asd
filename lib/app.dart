@@ -12,7 +12,6 @@ Future<void> fetchAndDownloadRelease(List<String> arguments) async {
 
   try {
     final config = ArgumentParser.parse(arguments);
-
     if (config.profileName != null) {
       print('使用配置: ${config.profileName}');
     }
@@ -152,16 +151,52 @@ Future<void> downloadAndShowResults(
     selectedFiles,
     downloadDir,
     config.forceOverwrite,
+    config.action,
   );
 
-  showDownloadResults(results, downloadDir, config);
+  await showDownloadResults(results, downloadDir, config);
 }
 
-void showDownloadResults(
+Future<void> executeActionCommand(
+  String command,
+  String downloadDir, [
+  String? fileName,
+]) async {
+  try {
+    String actualCommand = command;
+    if (fileName != null) {
+      actualCommand = command.replaceAll(r'$FileName', fileName);
+    }
+    print('\n执行命令: $actualCommand');
+
+    final processResult = await Process.run(
+      'bash',
+      ['-c', actualCommand],
+      workingDirectory: downloadDir,
+      runInShell: true,
+    );
+
+    if (processResult.exitCode == 0) {
+      print('命令执行成功');
+      if (processResult.stdout.toString().trim().isNotEmpty) {
+        print('标准输出: ${processResult.stdout}');
+      }
+    } else {
+      print('命令执行失败，退出码: ${processResult.exitCode}');
+      if (processResult.stderr.toString().trim().isNotEmpty) {
+        print('错误输出: ${processResult.stderr}');
+      }
+    }
+  } catch (e) {
+    print('执行命令时发生错误: $e');
+  }
+}
+
+Future<void> showDownloadResults(
   DownloadResult results,
   String downloadDir,
   DownloadConfig config,
-) {
+) async {
   print('\n' + '=' * 50);
   print('任务结束!');
   print('成功: ${results.successCount} 个文件');
@@ -176,6 +211,10 @@ void showDownloadResults(
     print('\n失败的文件:');
     for (final failure in results.failures) {
       print('  - ${failure.fileName}: ${failure.error}');
+    }
+  } else if (config.action != null && config.action!.isNotEmpty) {
+    if (!config.action!.contains(r'$FileName')) {
+      await executeActionCommand(config.action!, downloadDir);
     }
   }
 }

@@ -59,17 +59,17 @@ JSON **数组**，每个元素是一个预设（profile）。
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `name` | string | **必填**，profile 的唯一标识 |
-| `mirrorUrl` | string? | 镜像加速前缀，如 `https://ghproxy.com/` |
+| `mirrorUrl` | string? | 镜像加速前缀，如 `https://gh-proxy.com/(可以不写'/')` |
 | `forceOverwrite` | bool | 是否强制覆盖已存在文件，默认 `false` |
-| `repo` | string | 仓库简写，默认 `nostalgia296/asd` |
+| `repo` | string | 仓库名称，写法可以跟-u一样，默认 `nostalgia296/asd` |
 | `chooseTag` | string? | 指定 tag，与 `latest` 互斥 |
-| `path` | string? | 下载到哪个目录（目前不支持 `~`） |
+| `path` | string? | 下载到哪个目录（支持 `~`） |
 | `latest` | bool | 是否总是取最新 Release，默认 `false` |
 
 ---
 
 ## 使用方式
-如果预设有指定，会覆盖参数指定的
+如果预设有有指定，会覆盖参数指定的
 
 命令行通过 `-p <name>`加载预设：
 
@@ -88,6 +88,7 @@ asd -p fast
 | `-t` | 快速指定tagname | `-t tagname` |
 | `-c` | 自定义下载路径 | `-c path` |
 | `-l` | 快速切换到latest Release | `-l` |
+| `-p` | 指定预设名称 | `-p name` |
 
 #### 注意：-l 与 -t 是冲突的
 #### -u支持的链接写法

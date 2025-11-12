@@ -81,17 +81,29 @@ class ArgumentParser {
     }
 
     if (profileName != null) {
-      final profile = ConfigHandler.findProfileByName(profileName);
+      ConfigProfile? profile;
+      try {
+        profile = ConfigHandler.findProfileByName(profileName);
+      } on Exception catch (e) {
+        _printAndExit(e.toString());
+      }
+
       if (profile == null) {
-        _printAndExit('错误: 找不到名为 "$profileName" 的配置');
+        _printAndExit('错误: 找不到名为 "$profileName" 的配置，请检查配置文件中的配置名称');
       } else {
         final profileConfig = profile.toDownloadConfig();
 
-        if (config.mirrorUrl == null)
+        if (config.mirrorUrl == null && profileConfig.mirrorUrl != null) {
           config.mirrorUrl = profileConfig.mirrorUrl;
+          if (!config.mirrorUrl!.endsWith('/')) {
+            config.mirrorUrl = '${config.mirrorUrl!}/';
+          }
+        }
         if (!config.forceOverwrite)
           config.forceOverwrite = profileConfig.forceOverwrite;
-        if (config.repo == 'nostalgia296/asd') config.repo = profileConfig.repo;
+        if (config.repo == 'nostalgia296/asd') {
+          config.repo = extractRepoFromUrl(profileConfig.repo);
+        }
         if (config.chooseTag == null)
           config.chooseTag = profileConfig.chooseTag;
         if (config.path == null) config.path = profileConfig.path;

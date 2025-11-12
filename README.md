@@ -63,13 +63,13 @@ JSON **数组**，每个元素是一个预设（profile）。
 | `forceOverwrite` | bool | 是否强制覆盖已存在文件，默认 `false` |
 | `repo` | string | 仓库名称，写法可以跟-u一样，默认 `nostalgia296/asd` |
 | `chooseTag` | string? | 指定 tag，与 `latest` 互斥 |
-| `path` | string? | 下载到哪个目录（支持 `~`） |
+| `path` | string? | 下载到哪个目录（目前不支持支持 `~`） |
 | `latest` | bool | 是否总是取最新 Release，默认 `false` |
 
 ---
 
 ## 使用方式
-如果预设有有指定，会覆盖参数指定的
+如果预设有指定，会覆盖参数指定的
 
 命令行通过 `-p <name>`加载预设：
 

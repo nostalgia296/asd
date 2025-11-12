@@ -75,6 +75,11 @@ def get_profile_data():
         else:
             print("请输入 'y' 或 'n'")
 
+    print()
+    action = input("Action (可选，直接回车跳过): ").strip()
+    if action:
+        profile["action"] = action
+
     return profile
 
 

@@ -83,7 +83,7 @@ class ConfigHandler {
       }
     }
 
-    final currentDirConfig = File('${Directory.current.path}/$_configFileName');
+    final currentDirConfig = File('${Directory.current.path}${Platform.pathSeparator}$_configFileName');
     if (currentDirConfig.existsSync()) {
       _cachedConfigPath = currentDirConfig.path;
       return _cachedConfigPath!;
@@ -92,7 +92,7 @@ class ConfigHandler {
     if (homeDir != null) {
       _cachedConfigPath = '$homeDir${Platform.pathSeparator}$_configFileName';
     } else {
-      _cachedConfigPath = '${Directory.current.path}/$_configFileName';
+      _cachedConfigPath = '${Directory.current.path}${Platform.pathSeparator}$_configFileName';
     }
     return _cachedConfigPath!;
   }

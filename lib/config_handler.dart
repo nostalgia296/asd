@@ -144,4 +144,22 @@ class ConfigHandler {
       return null;
     }
   }
+
+  static void saveConfigProfiles(List<ConfigProfile> profiles) {
+    final configPath = getConfigPath();
+    final file = File(configPath);
+
+    final jsonList = profiles.map((p) => p.toJson()).toList();
+
+    final encoder = JsonEncoder.withIndent('  ');
+    final jsonString = encoder.convert(jsonList);
+
+    try {
+      file.writeAsStringSync(jsonString);
+      _cachedProfiles = profiles;
+    } catch (e) {
+      print('保存配置文件时出错: $e');
+      exit(1);
+    }
+  }
 }

@@ -3,11 +3,13 @@
 一个用 Dart 编写的命令行工具，用于从 GitHub Releases 下载文件，支持并发下载、进度显示和gh-proxy加速源。
 
 #### 配置文件
-###### 脚本
-现在可以通过scripts/genProfile.py快速生成Profile
+###### 快速生成和管理配置文件
+通过 asd profile 相关参数可以管理配置
 
 ```bash
-python scripts/genProfile.py add
+asd profile add #新增
+asd profile remove/rm name #删除
+asd profile list/ls #删除
 ```
 ###### 文件位置
 1. 如果定义了环境变量 `ASD_CONFIG_PATH`，则优先使用  

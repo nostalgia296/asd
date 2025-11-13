@@ -324,7 +324,7 @@ class FileDownloader {
       print('\n执行后置命令: $actualCommand');
 
       final processResult = await Process.run(
-        'sh',
+        'bash',
         ['-c', actualCommand],
         workingDirectory: downloadDir,
         runInShell: true,

@@ -30,7 +30,7 @@
 ```bash
 asd profile add #新增
 asd profile remove/rm name #删除
-asd profile list/ls #删除
+asd profile list/ls #列出已有配置
 ```
 
 ###### 文件位置

@@ -9,7 +9,7 @@
 ```bash
 asd profile add #新增
 asd profile remove/rm name #删除
-asd profile list/ls #删除
+asd profile list/ls #列出
 ```
 ###### 文件位置
 1. 如果定义了环境变量 `ASD_CONFIG_PATH`，则优先使用  

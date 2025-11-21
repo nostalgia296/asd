@@ -1,6 +1,8 @@
-# GitHub Release 下载工具
+# GitHub Release 下载/管理工具
 
-一个用 Dart 编写的命令行工具，用于从 GitHub Releases 下载文件，支持配置预设，并发下载、进度显示和gh-proxy加速源。
+下载: 一个用 Dart 编写的命令行工具，用于从 GitHub Releases 下载文件，支持配置预设，并发下载、进度显示和gh-proxy加速源。
+
+管理：使用C编写的命令行工具，用于创建新Release，上传/删除文件，具体使用可以查看help参数
 
 #### 参数选项
 

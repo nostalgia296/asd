@@ -112,6 +112,7 @@ static ErrorCode updateMultipleFiles(int fileCount, char **filePaths, const Conf
 static int expandWildcards(const char *pattern, char ***result);
 static void showUsage(void);
 static void showDetailedUsage(void);
+static ErrorCode createRelease(const char *tag_name, const char *release_name, const char *description, int is_prerelease, const Config *config);
 
 // 重试机制相关
 static ErrorCode performWithRetry(ErrorCode (*operation)(const void *), const void *param,
@@ -1373,167 +1374,13 @@ cleanup:
     return result;
 }
 
-// 下载文件
-ErrorCode downloadFile(const char *fileName, const char *outputPath, const Config *config) {
-    if (validate_config(config) != ERR_OK) {
-        return ERR_CONFIG;
-    }
-
-    if (!fileName) {
-        fprintf(stderr, "错误：文件名不能为空\n");
-        return ERR_CONFIG;
-    }
-
-    struct MemoryStruct chunk = {NULL, 0};
-    struct json_object *root = NULL;
-    ErrorCode result = ERR_OK;
-    int found = 0;
-
-    chunk.memory = malloc(1);
-    if (!chunk.memory) {
-        fprintf(stderr, "内存分配失败\n");
-        result = ERR_MEMORY;
-        goto cleanup;
-    }
-    chunk.memory[0] = '\0';
-    chunk.size = 0;
-
-    // 获取资产列表
-    if (getAssets(&chunk, config) != ERR_OK) {
-        result = ERR_CURL_PERFORM;
-        goto cleanup;
-    }
-
-    // 解析JSON
-    root = json_tokener_parse(chunk.memory);
-    if (!root) {
-        fprintf(stderr, "解析JSON失败\n");
-        result = ERR_JSON_PARSE;
-        goto cleanup;
-    }
-
-    struct json_object *assets;
-    if (!json_object_object_get_ex(root, "assets", &assets) ||
-        !json_object_is_type(assets, json_type_array)) {
-        fprintf(stderr, "获取资产列表失败\n");
-        result = ERR_JSON_TYPE;
-        goto cleanup;
-    }
-
-    // 查找文件
-    int arraySize = json_object_array_length(assets);
-    for (int i = 0; i < arraySize; i++) {
-        struct json_object *asset = json_object_array_get_idx(assets, i);
-        struct json_object *name_obj;
-
-        if (json_object_object_get_ex(asset, "name", &name_obj) &&
-            json_object_is_type(name_obj, json_type_string) &&
-            strcmp(json_object_get_string(name_obj), fileName) == 0) {
-            struct json_object *url_obj;
-            if (json_object_object_get_ex(asset, "browser_download_url", &url_obj) &&
-                json_object_is_type(url_obj, json_type_string)) {
-                const char *download_url = json_object_get_string(url_obj);
-
-                printf("正在下载 \"%s\"...\n", fileName);
-
-                // 下载文件
-                CURL *curl = curl_easy_init();
-                if (!curl) {
-                    fprintf(stderr, "初始化 CURL 失败\n");
-                    result = ERR_CURL_INIT;
-                    goto cleanup;
-                }
-
-                // 确定输出文件名
-                const char *outfile = outputPath ? outputPath : fileName;
-
-                FILE *fp = fopen(outfile, "wb");
-                if (!fp) {
-                    fprintf(stderr, "无法创建文件: %s\n", outfile);
-                    curl_easy_cleanup(curl);
-                    result = ERR_FILE_IO;
-                    goto cleanup;
-                }
-
-                curl_easy_setopt(curl, CURLOPT_URL, download_url);
-                curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
-                curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
-                curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
-
-                CURLcode res = curl_easy_perform(curl);
-                fclose(fp);
-
-                if (res != CURLE_OK) {
-                    fprintf(stderr, "下载失败: %s\n", curl_easy_strerror(res));
-                    unlink(outfile); // 删除不完整的文件
-                    curl_easy_cleanup(curl);
-                    result = ERR_CURL_PERFORM;
-                    goto cleanup;
-                }
-
-                // 检查HTTP响应码
-                long response_code;
-                curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-                curl_easy_cleanup(curl);
-
-                if (response_code >= 400) {
-                    fprintf(stderr, "下载失败，HTTP错误: %ld\n", response_code);
-                    unlink(outfile);
-                    result = ERR_HTTP_ERROR;
-                    goto cleanup;
-                }
-
-                struct json_object *size_obj;
-                int file_size = 0;
-                if (json_object_object_get_ex(asset, "size", &size_obj)) {
-                    file_size = json_object_get_int(size_obj);
-                }
-
-                printf("✅ 文件 \"%s\" 下载成功 (%d bytes)\n", fileName, file_size);
-                found = 1;
-                result = ERR_OK;
-                break;
-            }
-        }
-    }
-
-    if (!found) {
-        fprintf(stderr, "错误：在Release中未找到名为 \"%s\" 的文件。\n", fileName);
-        result = ERR_NOT_FOUND;
-
-        // 显示可用文件
-        if (arraySize > 0) {
-            printf("可用文件列表:\n");
-            for (int i = 0; i < arraySize; i++) {
-                struct json_object *asset = json_object_array_get_idx(assets, i);
-                struct json_object *name, *id;
-
-                if (json_object_object_get_ex(asset, "name", &name) &&
-                    json_object_is_type(name, json_type_string) &&
-                    json_object_object_get_ex(asset, "id", &id)) {
-                    printf("  - %s (ID: %d)\n",
-                           json_object_get_string(name),
-                           json_object_get_int(id));
-                }
-            }
-        } else {
-            printf("Release中没有文件。\n");
-        }
-    }
-
-cleanup:
-    if (root) json_object_put(root);
-    if (chunk.memory) free(chunk.memory);
-
-    return result;
-}
-
 void showUsage() {
     printf("用法:\n");
     printf("  ./manage upload <文件路径> [文件路径2] [文件路径3 ...]\n");
     printf("  ./manage delete <文件名> [文件名2] [文件名3 ...]\n");
     printf("  ./manage list\n");
     printf("  ./manage update <文件路径> [文件路径2] [文件路径3 ...]\n");
+    printf("  ./manage create-release <tag_name> [选项]\n");
     printf("  ./manage help         # 显示详细说明\n");
     printf("\n批量操作（支持通配符）:\n");
     printf("  ./manage upload *.zip\n");
@@ -1555,7 +1402,8 @@ void showDetailedUsage() {
     printf("  export GITHUB_TOKEN=your_token_here\n");
     printf("  ./manage list                      # 查看当前 Release 中的文件\n");
     printf("  ./manage upload myfile.zip        # 上传文件\n");
-    printf("  ./manage update myfile.zip        # 更新文件\n\n");
+    printf("  ./manage update myfile.zip        # 更新文件\n");
+    printf("  ./manage create-release v1.0      # 创建新 Release\n\n");
 
     printf("命令用法:\n");
     printf("-----------\n\n");
@@ -1584,6 +1432,18 @@ void showDetailedUsage() {
     printf("  示例:\n");
     printf("    ./manage update newbackup.zip\n");
     printf("    ./manage update *.zip\n\n");
+
+    printf("创建 Release (create-release):\n");
+    printf("  ./manage create-release <tag_name> [选项]\n");
+    printf("  选项:\n");
+    printf("    -n, --name <name>        Release 名称（默认使用 tag_name）\n");
+    printf("    -d, --description <desc> Release 描述\n");
+    printf("    -p, --prerelease         标记为预发布版本\n");
+    printf("  示例:\n");
+    printf("    ./manage create-release v1.0                           # 创建普通 release\n");
+    printf("    ./manage create-release v1.0 -n \"Version 1.0\"          # 创建指定名称的 release\n");
+    printf("    ./manage create-release v1.0 -d \"First stable release\" # 创建带描述的 release\n");
+    printf("    ./manage create-release v1.0-beta -p                   # 创建预发布版本\n\n");
 
     printf("环境变量配置:\n");
     printf("-------------\n\n");
@@ -1646,10 +1506,13 @@ int main(int argc, char *argv[]) {
         goto cleanup;
     }
 
-    // 获取最新的release id（动态分配）- 只调用一次
-    if (getLatestReleaseId(&config) != ERR_OK) {
-        result = ERR_CONFIG;
-        goto cleanup;
+    // 某些命令不需要预先获取 release_id
+    if (strcmp(command, "create-release") != 0) {
+        // 获取最新的release id（动态分配）- 只调用一次
+        if (getLatestReleaseId(&config) != ERR_OK) {
+            result = ERR_CONFIG;
+            goto cleanup;
+        }
     }
 
     if (strcmp(command, "upload") == 0) {
@@ -1776,6 +1639,49 @@ int main(int argc, char *argv[]) {
         }
     } else if (strcmp(command, "list") == 0) {
         result = listFiles(&config);
+    } else if (strcmp(command, "create-release") == 0) {
+        if (argc < 3) {
+            fprintf(stderr, "错误：请提供 tag_name。\n");
+            showUsage();
+            return 1;
+        }
+
+        // 解析命令行参数
+        const char *tag_name = argv[2];
+        const char *release_name = NULL;
+        const char *description = NULL;
+        int is_prerelease = 0;
+
+        // 解析可选参数
+        for (int i = 3; i < argc; i++) {
+            if (strcmp(argv[i], "-n") == 0 || strcmp(argv[i], "--name") == 0) {
+                if (i + 1 < argc) {
+                    release_name = argv[i + 1];
+                    i++; // 跳过下一个参数
+                } else {
+                    fprintf(stderr, "错误：-n 或 --name 需要一个参数\n");
+                    showUsage();
+                    return 1;
+                }
+            } else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--description") == 0) {
+                if (i + 1 < argc) {
+                    description = argv[i + 1];
+                    i++; // 跳过下一个参数
+                } else {
+                    fprintf(stderr, "错误：-d 或 --description 需要一个参数\n");
+                    showUsage();
+                    return 1;
+                }
+            } else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--prerelease") == 0) {
+                is_prerelease = 1;
+            } else {
+                fprintf(stderr, "错误：未知参数 \"%s\"\n", argv[i]);
+                showUsage();
+                return 1;
+            }
+        }
+
+        result = createRelease(tag_name, release_name, description, is_prerelease, &config);
     } else {
         fprintf(stderr, "错误：未知命令 \"%s\"。\n", command);
         showUsage();
@@ -1917,4 +1823,172 @@ static ErrorCode updateFileWithRetry(const char *filePath, const Config *config,
     const char *fileName = getFilenameFromPath(filePath);
     log_info("开始更新文件: %s (最多重试 %d 次)", fileName, maxRetries);
     return performWithRetry(retryableOperationWrapper, &param, maxRetries, fileName);
+}
+
+// 创建新的 GitHub Release
+static ErrorCode createRelease(const char *tag_name, const char *release_name, const char *description, int is_prerelease, const Config *config) {
+    // 验证配置（跳过 release_id 检查，因为创建 release 时 release_id 还未生成）
+    if (!config) {
+        log_error("配置为空");
+        return ERR_CONFIG;
+    }
+
+    if (!config->token) {
+        log_error("未设置 token");
+        return ERR_CONFIG;
+    }
+
+    if (!config->owner) {
+        log_error("未设置 owner");
+        return ERR_CONFIG;
+    }
+
+    if (!config->repo) {
+        log_error("未设置 repo");
+        return ERR_CONFIG;
+    }
+
+    if (!tag_name) {
+        log_error("tag_name 不能为空");
+        return ERR_CONFIG;
+    }
+
+    CURL *curl = NULL;
+    struct curl_slist *headers = NULL;
+    struct MemoryStruct chunk = {NULL, 0};
+    struct json_object *json_request = NULL;
+    char *url = NULL;
+    char *post_data = NULL;
+    ErrorCode result = ERR_OK;
+
+    // 构建请求体
+    json_request = json_object_new_object();
+    if (!json_request) {
+        log_error("创建 JSON 对象失败");
+        result = ERR_MEMORY;
+        goto cleanup;
+    }
+
+    json_object_object_add(json_request, "tag_name", json_object_new_string(tag_name));
+
+    // 如果提供了 release_name，则使用它，否则使用 tag_name
+    if (release_name && strlen(release_name) > 0) {
+        json_object_object_add(json_request, "name", json_object_new_string(release_name));
+    } else {
+        json_object_object_add(json_request, "name", json_object_new_string(tag_name));
+    }
+
+    // 添加描述
+    if (description && strlen(description) > 0) {
+        json_object_object_add(json_request, "body", json_object_new_string(description));
+    } else {
+        json_object_object_add(json_request, "body", json_object_new_string("Release created by manage tool"));
+    }
+
+    // 是否为预发布
+    json_object_object_add(json_request, "prerelease", json_object_new_boolean(is_prerelease));
+
+    // 设置为公开或私有（默认公开）
+    json_object_object_add(json_request, "draft", json_object_new_boolean(0));
+
+    // 获取 JSON 字符串
+    const char *json_str = json_object_to_json_string(json_request);
+    if (!json_str) {
+        log_error("生成 JSON 字符串失败");
+        result = ERR_JSON_PARSE;
+        goto cleanup;
+    }
+
+    // 复制 JSON 字符串以便 curl 使用
+    post_data = strdup(json_str);
+    if (!post_data) {
+        log_error("内存分配失败");
+        result = ERR_MEMORY;
+        goto cleanup;
+    }
+
+    // 创建 URL
+    url = create_url("https://api.github.com/repos/%s/%s/releases", config->owner, config->repo);
+    if (!url) {
+        log_error("URL 分配失败");
+        result = ERR_MEMORY;
+        goto cleanup;
+    }
+
+    curl = curl_easy_init();
+    if (!curl) {
+        log_error("初始化 CURL 失败");
+        result = ERR_CURL_INIT;
+        goto cleanup;
+    }
+
+    headers = setGithubHeaders(config->token, "application/json");
+
+    // 设置 POST 数据
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(post_data));
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
+
+    printf("正在创建新的 Release，标签: %s...\n", tag_name);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        fprintf(stderr, "创建 Release 失败: %s\n", curl_easy_strerror(res));
+        result = ERR_CURL_PERFORM;
+        goto cleanup;
+    }
+
+    // 检查 HTTP 响应码
+    long response_code;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+    if (response_code >= 400) {
+        log_error("创建 Release 失败，HTTP错误: %ld", response_code);
+        log_error("响应内容: %s", chunk.memory);
+        result = ERR_HTTP_ERROR;
+        goto cleanup;
+    }
+
+    // 解析响应以获取新创建的 Release 信息
+    struct json_object *response = json_tokener_parse(chunk.memory);
+    if (!response) {
+        log_error("解析创建 Release 的响应失败");
+        result = ERR_JSON_PARSE;
+        goto cleanup;
+    }
+
+    struct json_object *id_obj;
+    if (!json_object_object_get_ex(response, "id", &id_obj) ||
+        !json_object_is_type(id_obj, json_type_int)) {
+        log_error("无法从响应中获取 release id");
+        result = ERR_JSON_TYPE;
+        goto cleanup;
+    }
+
+    int id_value = json_object_get_int(id_obj);
+    struct json_object *tag_obj;
+    const char *created_tag = tag_name;
+    if (json_object_object_get_ex(response, "tag_name", &tag_obj) &&
+        json_object_is_type(tag_obj, json_type_string)) {
+        created_tag = json_object_get_string(tag_obj);
+    }
+
+    printf("✅ Release 创建成功!\n");
+    printf("   - 标签: %s\n", created_tag);
+    printf("   - ID: %d\n", id_value);
+
+cleanup:
+    if (response) json_object_put(response);
+    if (post_data) free(post_data);
+    if (json_request) json_object_put(json_request);
+    if (chunk.memory) free(chunk.memory);
+    if (headers) curl_slist_free_all(headers);
+    if (curl) curl_easy_cleanup(curl);
+    if (url) free(url);
+
+    return result;
 }

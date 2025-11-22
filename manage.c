@@ -112,7 +112,8 @@ static ErrorCode updateMultipleFiles(int fileCount, char **filePaths, const Conf
 static int expandWildcards(const char *pattern, char ***result);
 static void showUsage(void);
 static void showDetailedUsage(void);
-static ErrorCode createRelease(const char *tag_name, const char *release_name, const char *description, int is_prerelease, const Config *config);
+static ErrorCode createRelease(const char *tag_name, const char *release_name, const char *description,
+                               int is_prerelease, const Config *config, char **out_release_id);
 
 // 重试机制相关
 static ErrorCode performWithRetry(ErrorCode (*operation)(const void *), const void *param,
@@ -1380,7 +1381,7 @@ void showUsage() {
     printf("  ./manage delete <文件名> [文件名2] [文件名3 ...]\n");
     printf("  ./manage list\n");
     printf("  ./manage update <文件路径> [文件路径2] [文件路径3 ...]\n");
-    printf("  ./manage create-release <tag_name> [选项]\n");
+    printf("  ./manage create-release <tag_name> [选项] [文件...]\n");
     printf("  ./manage help         # 显示详细说明\n");
     printf("\n批量操作（支持通配符）:\n");
     printf("  ./manage upload *.zip\n");
@@ -1434,16 +1435,19 @@ void showDetailedUsage() {
     printf("    ./manage update *.zip\n\n");
 
     printf("创建 Release (create-release):\n");
-    printf("  ./manage create-release <tag_name> [选项]\n");
+    printf("  ./manage create-release <tag_name> [选项] [文件...]\n");
     printf("  选项:\n");
     printf("    -n, --name <name>        Release 名称（默认使用 tag_name）\n");
     printf("    -d, --description <desc> Release 描述\n");
     printf("    -p, --prerelease         标记为预发布版本\n");
+    printf("    [文件...]                创建 release 后要上传的文件（支持通配符）\n");
     printf("  示例:\n");
     printf("    ./manage create-release v1.0                           # 创建普通 release\n");
     printf("    ./manage create-release v1.0 -n \"Version 1.0\"          # 创建指定名称的 release\n");
     printf("    ./manage create-release v1.0 -d \"First stable release\" # 创建带描述的 release\n");
-    printf("    ./manage create-release v1.0-beta -p                   # 创建预发布版本\n\n");
+    printf("    ./manage create-release v1.0-beta -p                   # 创建预发布版本\n");
+    printf("    ./manage create-release v1.0 *.zip                     # 创建 release 并上传所有 zip 文件\n");
+    printf("    ./manage create-release v1.0 file1.zip file2.zip       # 创建 release 并上传指定文件\n\n");
 
     printf("环境变量配置:\n");
     printf("-------------\n\n");
@@ -1646,13 +1650,17 @@ int main(int argc, char *argv[]) {
             return 1;
         }
 
+        // 创建新的 Release ID 用于接收函数返回值
+        char *new_release_id = NULL;
+
         // 解析命令行参数
         const char *tag_name = argv[2];
         const char *release_name = NULL;
         const char *description = NULL;
         int is_prerelease = 0;
 
-        // 解析可选参数
+        // 解析可选参数和文件参数
+        int file_argv_start = 3;
         for (int i = 3; i < argc; i++) {
             if (strcmp(argv[i], "-n") == 0 || strcmp(argv[i], "--name") == 0) {
                 if (i + 1 < argc) {
@@ -1675,13 +1683,78 @@ int main(int argc, char *argv[]) {
             } else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--prerelease") == 0) {
                 is_prerelease = 1;
             } else {
-                fprintf(stderr, "错误：未知参数 \"%s\"\n", argv[i]);
-                showUsage();
-                return 1;
+                // 其余参数都是文件路径
+                file_argv_start = i;
+                break;
             }
         }
 
-        result = createRelease(tag_name, release_name, description, is_prerelease, &config);
+        // 创建 Release
+        result = createRelease(tag_name, release_name, description, is_prerelease, &config, &new_release_id);
+
+        // 如果创建成功且有文件需要上传
+        if (result == ERR_OK && new_release_id && file_argv_start < argc) {
+            printf("\n准备上传文件到新创建的 Release...\n");
+
+            // 创建一个临时的配置对象，使用新的 release_id
+            Config upload_config = config;
+            upload_config.release_id = new_release_id;
+
+            // 处理所有文件模式
+            int totalFiles = 0;
+            char **allFiles = NULL;
+
+            for (int i = file_argv_start; i < argc; i++) {
+                char **matchedFiles = NULL;
+                int fileCount = expandWildcards(argv[i], &matchedFiles);
+
+                if (fileCount > 0) {
+                    char **newAllFiles = realloc(allFiles, (totalFiles + fileCount) * sizeof(char *));
+                    if (!newAllFiles) {
+                        fprintf(stderr, "内存分配失败\n");
+                        result = ERR_MEMORY;
+                        // 清理已分配的文件名
+                        if (allFiles) {
+                            for (int j = 0; j < totalFiles; j++) {
+                                free(allFiles[j]);
+                            }
+                            free(allFiles);
+                        }
+                        for (int j = 0; j < fileCount; j++) {
+                            free(matchedFiles[j]);
+                        }
+                        free(matchedFiles);
+                        free(new_release_id);
+                        goto cleanup;
+                    }
+                    allFiles = newAllFiles;
+
+                    for (int j = 0; j < fileCount; j++) {
+                        allFiles[totalFiles++] = matchedFiles[j];
+                    }
+                    free(matchedFiles);
+                }
+            }
+
+            if (totalFiles == 0) {
+                fprintf(stderr, "错误：找不到匹配的文件\n");
+                result = ERR_FILE_IO;
+            } else {
+                result = uploadMultipleFiles(totalFiles, allFiles, &upload_config);
+            }
+
+            // 清理文件列表
+            if (allFiles) {
+                for (int i = 0; i < totalFiles; i++) {
+                    free(allFiles[i]);
+                }
+                free(allFiles);
+            }
+
+            free(new_release_id);
+        } else if (new_release_id) {
+            free(new_release_id);
+        }
     } else {
         fprintf(stderr, "错误：未知命令 \"%s\"。\n", command);
         showUsage();
@@ -1825,8 +1898,9 @@ static ErrorCode updateFileWithRetry(const char *filePath, const Config *config,
     return performWithRetry(retryableOperationWrapper, &param, maxRetries, fileName);
 }
 
-// 创建新的 GitHub Release
-static ErrorCode createRelease(const char *tag_name, const char *release_name, const char *description, int is_prerelease, const Config *config) {
+// 创建新的 GitHub Release，返回新创建的 release_id（动态分配）
+static ErrorCode createRelease(const char *tag_name, const char *release_name, const char *description,
+                               int is_prerelease, const Config *config, char **out_release_id) {
     // 验证配置（跳过 release_id 检查，因为创建 release 时 release_id 还未生成）
     if (!config) {
         log_error("配置为空");
@@ -1975,6 +2049,18 @@ static ErrorCode createRelease(const char *tag_name, const char *release_name, c
     if (json_object_object_get_ex(response, "tag_name", &tag_obj) &&
         json_object_is_type(tag_obj, json_type_string)) {
         created_tag = json_object_get_string(tag_obj);
+    }
+
+    // 将 release_id 返回给调用者
+    if (out_release_id) {
+        char temp_id[32];
+        snprintf(temp_id, sizeof(temp_id), "%d", id_value);
+        *out_release_id = strdup(temp_id);
+        if (!*out_release_id) {
+            log_error("内存分配失败");
+            result = ERR_MEMORY;
+            goto cleanup;
+        }
     }
 
     printf("✅ Release 创建成功!\n");

@@ -42,7 +42,7 @@ ASD 支持使用镜像源来加速 GitHub Release 文件的下载，特别适用
 以下是一些常用的 GitHub 镜像源：
 
 - **gh-proxy.com**: `https://gh-proxy.com/`
-- ***proxy.pipers.cn*: `https://proxy.pipers.cn/`
+- **proxy.pipers.cn**: `https://proxy.pipers.cn/`
 
 你也可以使用其他公开的或自建的 GitHub 镜像服务。
 

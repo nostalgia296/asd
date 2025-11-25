@@ -10,8 +10,7 @@ export default defineConfig({
       { text: '首页', link: '/' },
       { text: '快速开始', link: '/guide/quick-start' },
       { text: '配置', link: '/guide/configuration' },
-      { text: '命令行参数', link: '/guide/arguments' },
-      { text: '高级功能', link: '/guide/advanced' }
+      { text: '命令行参数', link: '/guide/arguments' }
     ],
 
     sidebar: [

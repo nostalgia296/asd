@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'ASD - GitHub Release 下载工具',
   description: '一个用 Dart 编写的命令行工具，用于从 GitHub Releases 下载文件',
-  base: '/',
+  base: '/asd/',
   ignoreDeadLinks: true,
   themeConfig: {
     nav: [

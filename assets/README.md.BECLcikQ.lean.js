@@ -1,0 +1,1 @@
+import{_ as e,c as s,o as i,ae as t}from"./chunks/framework.z-3LpYYl.js";const k=JSON.parse('{"title":"ASD 文档","description":"","frontmatter":{},"headers":[],"relativePath":"README.md","filePath":"README.md"}'),l={name:"README.md"};function n(h,a,d,o,r,p){return i(),s("div",null,[...a[0]||(a[0]=[t("",16)])])}const u=e(l,[["render",n]]);export{k as __pageData,u as default};
